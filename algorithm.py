@@ -31,6 +31,11 @@ class Algorithm(MPIPPO):
     Extends the PPO algorithm to:
     1) sample a new robot for each iteration
     2) update the robot distribution to maximize reward under the current policy.
+
+    TODO:
+    1) Create a graph for different robot type
+    2) Update the graph through RL
+    3) Update the XML correspondingly
     """
     def defaults(self):
         defaults = super().defaults()
@@ -51,6 +56,7 @@ class Algorithm(MPIPPO):
         self.writer = tf.summary.FileWriter(os.path.join(self.logdir, 'summaries'), max_queue=10000, flush_secs=60)
         self.chopper = ComponentChopper(self.env, self.actor, self.mpi_rank)
 
+    #we also need to add the optimizer for the structure distribution
     def _build_robot_dist_optimizer(self):
         r = layers.Placeholder(tf.float32, [], 'robot_reward')
         robot_loss = RobotDistributionLoss('rloss', self.actor.sampler, r)
@@ -87,9 +93,18 @@ class Algorithm(MPIPPO):
         super().sync()
         self.mpi_adam_robot.sync()
 
+    #this function has been modified
     def sample_robot(self, stochastic=True):
-        robot = self.actor.sampler.sample(stochastic=stochastic)[0]
-        self.env.update_robot(robot)
+        params = self.actor.sampler.sample(stochastic=stochastic)
+        print("the sampled parameters are: ")
+        print(params)
+        #this actually write out to the xml file, I believe
+        #where does the attached m goes?
+        robot = params[0]
+        connection_list = params[2]
+        self.env.update_robot(robot, connection_list)
+        #ideally we just modify here so that the structure is also changed
+        #here the robot is param
         self.runner.reset()
 
     def _before_step(self):
@@ -117,6 +132,7 @@ class Algorithm(MPIPPO):
             self._update_robot_dist()
         return losses
 
+    #this function update the distribution over parameters [where is the robot getting changed though?]
     def _update_robot_dist(self):
         self.env.update_buffer()
         episode_reward = [self.env.reward_buffer[-1]]

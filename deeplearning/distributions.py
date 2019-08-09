@@ -222,6 +222,8 @@ class DiagGaussianMixturePd(Pd):
         self.mixture = CategoricalPd(flat[:,:n])
         self.log_mixing_probs = tf.nn.log_softmax(self.mixture.logits)
         self.gaussians = []
+        #we probably also need to change this
+        #I don't really know why they write this as it is
         d = flat[:,n:].shape[1].value // n
         for i in range(n):
             self.gaussians.append(DiagGaussianPd(flat[:,n+i*d:n+(i+1)*d]))
@@ -239,6 +241,7 @@ class DiagGaussianMixturePd(Pd):
             return -tf.reduce_max(p, axis=[0])
         else:
             return -tf.reduce_logsumexp(p, axis=[0])
+
     def kl(self, other):
         return tf.constant(0.0)
     def entropy(self):
@@ -252,6 +255,7 @@ class DiagGaussianMixturePd(Pd):
 
 class BernoulliPd(Pd):
     def __init__(self, logits):
+        #why do we pass in logits here?
         self.logits = logits
         self.ps = tf.sigmoid(logits)
     def flatparam(self):
@@ -264,6 +268,7 @@ class BernoulliPd(Pd):
         return tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=other.logits, labels=self.ps), axis=-1) - tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.ps), axis=-1)
     def entropy(self):
         return tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.ps), axis=-1)
+    #looks like this indeed represent several independent bernoulli variable and is what we want
     def sample(self):
         u = tf.random_uniform(tf.shape(self.ps))
         return tf.to_float(math_ops.less(u, self.ps))

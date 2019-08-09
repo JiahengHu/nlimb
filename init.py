@@ -32,6 +32,8 @@ def get_init_params(args):
     normed_params = 2 * (np.array(params) - np.array(lmin)) / (np.array(lmax) - np.array(lmin)) - 1.0
     return normed_params
 
+#xml name: logdir/logs/robot.xml.id
+#here we directly change the env function
 def make_env_fn(args):
     env_id = get_env_id(args.robot, args.terrain)
     def env_fn(rank):
@@ -40,7 +42,7 @@ def make_env_fn(args):
         shutil.copyfile(default_xml, xmlfile)
         set_global_seeds(args.seed + rank)
         env = gym.make(env_id)
-        return NLimbRecorderEnv(env, xmlfile, args.robot)
+        return NLimbEvoRecorderEnv(env, xmlfile, args.robot)
     return env_fn
 
 def make_model_fn(args):
@@ -69,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('logdir', type=str, help='log directory')
     parser.add_argument('-n', '--nenv', type=int, default=8, help='# of threads to create')
     parser.add_argument('-t', '--maxtimesteps', type=int, default=int(1e9), help='max timesteps')
-    parser.add_argument('--robot', type=str, default='hopper', help='robot xml to use. Options are [hopper, walker, ant, humanoid]')
+    parser.add_argument('--robot', type=str, default='hopper', help='robot xml to use. Options are [hopper, walker, ant, humanoid, walkerevo]')
     parser.add_argument('--terrain', default='flat', type=str, help='[flat, slope]')
     parser.add_argument('--seed',type=int, default=0, help='random seed')
     parser.add_argument('--gamma',type=float, default=.99, help='gamma')
