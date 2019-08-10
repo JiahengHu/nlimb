@@ -1,7 +1,8 @@
 import numpy as np
 from mpi4py import MPI
 
-
+#need to change this (change the way of chopping)
+#because it calls sample gaussian
 class ComponentChopper(object):
     def __init__(self, env, actor, rank):
         self.env = env

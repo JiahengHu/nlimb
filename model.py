@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from deeplearning import tf_util as U, layers, module
-from deeplearning.distributions import DiagGaussianMixturePd
+from deeplearning.distributions import DiagGaussianMixturePd, CategoricalPd, BernoulliPd, DiagGaussianPd
 from rl.rl_module import Policy, ActorCritic, ValueFunction
 
 class GmmPd(DiagGaussianMixturePd):
@@ -35,13 +35,16 @@ class GmmPdWithStruct(GmmPd):
     def __init__(self, flat, n, nlegs, hard_grad=False):
         self.n = n
         self.hard_grad = hard_grad
+        self.nlegs = nlegs #this actually means the number of breakable joints
         self.mixture = CategoricalPd(flat[:,:n])
         self.log_mixing_probs = tf.nn.log_softmax(self.mixture.logits)
         self.gaussians = []
         self.bernoullis = []
         #we probably also need to change this
         #I don't really know why they write this as it is
+        #this is 22, which is obviously wrong (should be...?)
         d = flat[:,n:].shape[1].value // n
+        # print(f"d in model.py is {d}")
         for i in range(n):
             self.gaussians.append(DiagGaussianPd(flat[:,n+i*d:n+(i+1)*d-nlegs]))
             self.bernoullis.append(BernoulliPd(flat[:,n+(i+1)*d-nlegs:n+(i+1)*d]))
@@ -51,8 +54,8 @@ class GmmPdWithStruct(GmmPd):
         bernoulli_samples = tf.stack([b.sample() for b in self.bernoullis])
         m = self.mixture.sample()
         #not exactly sure if I'm doing the correct thing here
-        s = tf.concat([tf.gather(samples, m)[0], tf.cast(m, tf.float32)[None], 
-            tf.gather(bernoulli_samples, m)[0]], axis=1)
+        s = tf.concat([tf.gather(samples, m)[0], 
+            tf.gather(bernoulli_samples, m)[0], tf.cast(m, tf.float32)[None]], axis=1)
         #should probably check the dimension of s
         return s
 
@@ -64,12 +67,12 @@ class GmmPdWithStruct(GmmPd):
         #the probability of getting the mode + the probability of the gmm?
         #might got dimensionality issue here, but we'll see
         temp_logs = [b.logp(b.mode()) + self.log_mixing_probs[:,i] for i,b in enumerate(self.bernoullis)]
-        logps = tf.stack([g.logp(g.mode()) + temp_logs[:,i] for i,g in enumerate(self.gaussians)])
+        logps = tf.stack([g.logp(g.mode()) + temp_logs[i] for i,g in enumerate(self.gaussians)])
         #also add the prob of the nernoulli
 
         m = tf.argmax(logps)
-        s = tf.concat([tf.gather(modes, tf.argmax(logps))[0], tf.cast(m, tf.float32)[None], 
-            tf.gather(bernoulli_modes, m)[0]], axis=1)
+        s = tf.concat([tf.gather(modes, tf.argmax(logps))[0], 
+            tf.gather(bernoulli_modes, m)[0], tf.cast(m, tf.float32)[None]], axis=1)
         return s
 
     #now what does x represent? It should now be params + connection_list
@@ -77,10 +80,16 @@ class GmmPdWithStruct(GmmPd):
     #comp seems to be the m appended at the end
     def neglogp(self, x):
         params = x[:,:-1]
+        #should be param+connection
         comp = tf.cast(x[:,-1:], tf.int32)
         comp = tf.concat([comp, tf.expand_dims(tf.range(comp.shape[0]),axis=1)], axis=1)
-        p = tf.stack([self.log_mixing_probs[:,i] + self.gaussians[i].logp(params) + 
-            self.bernoullis[i]. for i in range(self.n)])
+        #print(f"in model.py, shape for log mixing probs, gaussian and bernoullis is respectively 
+        # print(self.log_mixing_probs[:,0].shape)
+        # print(params[:,:-self.nlegs].shape)
+        # print(self.gaussians[0].logp(params[:,:-self.nlegs]).shape)
+        # print(self.bernoullis[0].logp(params[:,-self.nlegs:]).shape)
+        p = tf.stack([self.log_mixing_probs[:,i] + self.gaussians[i].logp(params[:,:-self.nlegs]) + 
+            self.bernoullis[i].logp(params[:,-self.nlegs:]) for i in range(self.n)])
         p = tf.gather_nd(p, comp)
         return -1. * p
 
@@ -113,9 +122,9 @@ class RobotSampler(module.Module):
     Define robot distribution.
     """
     ninputs=1
-    def __init__(self, name, robot, nparams, nlegs = 2, pleg_init = None, ncomponents=8, mean_init=None, std_init=0.577):
+    def __init__(self, name, robot, nparams, ncomponents=8, mean_init=None, std_init=0.577, nlegs = 2, pleg_init = None):
         super().__init__(name, robot)
-        self.nparams = nparams
+        self.nparams = nparams - nlegs  #here this parameter only represent those that are represented by Gaussian
         self.ncomponents = ncomponents
         self.mean_init = mean_init
         self.std_init = std_init
@@ -134,9 +143,10 @@ class RobotSampler(module.Module):
 
         #randomly generate the starting distribution
         #self.pd is the eventual production
+        #here is the problem, the parameters are treated as
         for i in range(self.ncomponents):
             if self.mean_init is not None:
-                mean = np.asarray(self.mean_init)
+                mean = np.asarray(self.mean_init[:-nlegs])
             else:
                 mean = np.random.uniform(-0.8,0.8, size=self.nparams)
             m = tf.get_variable('m{}'.format(i),
@@ -162,6 +172,7 @@ class RobotSampler(module.Module):
                                 shape=pleg.shape,
                                 dtype=tf.float32,
                                 initializer=tf.constant_initializer(pleg))
+            #this p is the variable that will be trained, and used to generate the bernoulli
             #should be two dimensional
             vars.append(p)
 
@@ -176,6 +187,8 @@ class RobotSampler(module.Module):
         self._sample_component = self.pd.mixture.sample()
         #sample for each of the gassian distribution, seems to be tf_placeholder
         self._sample_gaussians = [g.sample() for g in self.pd.gaussians]
+        self._sample_bernoullis = [g.sample() for g in self.pd.bernoullis]
+        self._sample_params = tf.concat([self._sample_gaussians,self._sample_bernoullis], axis = 2)
         #best_model_generator
         self._mode = self.pd.mode()
         #sampler
@@ -192,8 +205,10 @@ class RobotSampler(module.Module):
     def sample_component(self):
         return self._sample_component.eval()
 
+    #changed so that it samples both gaussian and bernoulli
     def sample_gaussian(self, index):
-        s = self._sample_gaussians[index].eval()
+        s = self._sample_params[index].eval()
+        print(f"sample_params in model.py: {s} (this should be called in chopping process)")
         return np.concatenate([s, [[index]]], axis=1)
 
 

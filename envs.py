@@ -66,6 +66,7 @@ def create_env(BaseClass):
             if not self.scene.multiplayer:
                 self.scene.episode_restart()
             # Only this line has been changed. The rest is copied from Roboschool.
+            #print(f"in envs.py, the model.xml is {self.model_xml}")
             self.mjcf = self.scene.cpp_world.load_mjcf(self.model_xml)
             self.ordered_joints = []
             self.jdict = {}
@@ -310,59 +311,43 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
         #                   2. action space
         #                   3. observation space
         #this currently only works for 2d walker
-    def __init__(self, env, model_xml, robot_type):
-        super().__init__(env)
-        self.robot = get_robot(robot_type)(model_xml)
+        #having problem here...how to super init
+    def __init__(self, *args, buffer_size=1, **kwargs):
+        super().__init__(*args, buffer_size = buffer_size, **kwargs)
         self.leg_list_length = len(self.robot.foot_list)
-        self.unwrapped.model_xml = model_xml
-
-        limits = self.robot.get_param_limits()
-        self.lim_min = np.array(limits[0])
-        self.lim_max = np.array(limits[1])
-        self.params = self._norm_params(self.robot.get_params())
-        self.param_names = self.robot.get_param_names()
-
-        assert len(self.observation_space.shape) == 1, "Ob space must be 1 dimensional"
-        #this is actually the only line changed, so that the shape is different
-        shape = self.observation_space.shape[0] + len(self.params)# + self.leg_list_length
-        high = self.observation_space.high[0] * np.ones(shape)
-        low = self.observation_space.low[0] * np.ones(shape)
-        self.observation_space = Box(low, high, dtype=np.float32)
-
-        self.param_buffer = deque(maxlen=buffer_size)
-        self.reward_buffer = deque(maxlen=buffer_size)
-        self.ep_rews = []
-        self.rews = []
-        self.unclipped_params = self.params
-
-        #need to change the action space as well
-        #actually we don't, since the action space we initially have is the correct one
+        self.connection_list = np.ones(self.leg_list_length)
 
     #okay, looks like we don't even need to change this?
     #oh, we need to change the robot state
-    def update_robot(self, params, connection_list):
-        self.connection_list = connection_list
-        self.update_buffer()
-        self.unclipped_params = params
-        super().update_robot(params, connection_list)
+    def update_robot(self, params):
+        #self.connection_list = connection_list
+        #need to store the connection_list somewhere?
+        # print(f"params in envs.py is {params}")
+        # print(self.params)
+        super().update_robot(params)
 
         #we probably don't need it here, but think about where we will need this
         #env.unwrapped.model_xml = os.path.join(os.getcwd(), 'mujoco_assets/ant_test.xml')
-
+        connection_list = params[-self.leg_list_length-1:-1]
+        self.connection_list = connection_list
+        
         #change footlist, change action space
         #these are just temp fix
         foot_list = []
-        for ind in connection_list:
-            foot_list.append(self.robot.foot_list[ind - 1])
-        env.unwrapped.foot_list = foot_list
+        for i in range(self.leg_list_length):
+            if(connection_list[i]):
+                foot_list.append(self.robot.foot_list[i])
+        self.unwrapped.foot_list = foot_list
 
-        num_of_leg = len(connection_list)
+        print(f"connection list in envs.py (update_robot) is {connection_list}, corresponding footlist is {foot_list}")
+
+        num_of_leg = np.count_nonzero(self.connection_list)
 
         high = np.ones([num_of_leg*self.robot.action_space_coeff])
-        env.unwrapped.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
-        env.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
+        self.unwrapped.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
+        self.env.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
         high = np.inf*np.ones([num_of_leg*self.robot.observation_space_coeff + 8])
-        env.unwrapped.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
+        self.unwrapped.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
 
     #after reset, will the robot structure change? how should we handle it?
     def reset(self):
@@ -371,7 +356,9 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
             self.rews = []
         ob = self.env.reset()
         #now we also have to handle the dimension issue here
+        #print(f"observation in envs.py is {ob}")
         ob = self.process_obs(ob)
+        #print(f"observation in envs.py is {ob} (after process obs)")
         ob = np.concatenate([ob, self.params])
         return ob
 
@@ -384,7 +371,7 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
                 a = a[:3]
             else:
                 a = a[3:]
-        ob, reward, done, info = self.env.step(np.clip(a,-1,1))
+        ob, r, done, info = self.env.step(np.clip(a,-1,1))
         ob = self.process_obs(ob)
         ob = np.concatenate([ob, self.params])
         
@@ -393,17 +380,23 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
 
     def process_obs(self, ob):
         #make sure that ob is the correct shape
+        # print(f"connection list in envs.py is {self.connection_list}")
+        # print(np.count_nonzero(self.connection_list))
         if(np.count_nonzero(self.connection_list)==0):
             ob = np.concatenate([ob, np.zeros(14)])
         if(np.count_nonzero(self.connection_list)==1):
             if(self.connection_list[0] == 1):
+                #print(f"the observation for single first legged {ob}")
                 for i in range(7):
                     ind = 15 - i
-                    np.insert(obs,ind, 0)
-                print(f"the observation for single first legged {ob}")
+                    ob = np.insert(ob,ind, 0)
+                #print(f"the observation for single first legged {ob} (after insertion)")
             else:
+                #print(f"the observation for single second legged {ob}")
                 for i in range(7):
                     ind = 14 - i
-                    np.insert(obs,ind, 0)
-                print(f"the observation for single second legged {ob}")
-        ob = np.concatenate([ob, self.connection_list])
+                    ob = np.insert(ob,ind, 0)
+                #print(f"the observation for single second legged {ob} (after insertion)")
+        #ob = np.concatenate([ob, self.connection_list])
+        #we don't need this since the param already include this
+        return ob

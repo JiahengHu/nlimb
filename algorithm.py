@@ -57,8 +57,12 @@ class Algorithm(MPIPPO):
         self.chopper = ComponentChopper(self.env, self.actor, self.mpi_rank)
 
     #we also need to add the optimizer for the structure distribution
+    #not 100% sure what we are doing here, espycially the beta is, but we don't need to worry about it for now
+    #becuase the gradient is already calculated by the RobotDistributionLoss
     def _build_robot_dist_optimizer(self):
         r = layers.Placeholder(tf.float32, [], 'robot_reward')
+        #the output to sampler and r will be the input to robot_loss
+        #Okay that makes so much sense now
         robot_loss = RobotDistributionLoss('rloss', self.actor.sampler, r)
         self.robot_grad = FlatGrad('rgrad', robot_loss, clip_norm=self.args.clip_norm)
         self.robot_grad.build('model', 1, 1)
@@ -95,14 +99,12 @@ class Algorithm(MPIPPO):
 
     #this function has been modified
     def sample_robot(self, stochastic=True):
-        params = self.actor.sampler.sample(stochastic=stochastic)
-        print("the sampled parameters are: ")
-        print(params)
+        params = self.actor.sampler.sample(stochastic=stochastic)[0]
+        # print("the sampled parameters are: ")
+        # print(params)
         #this actually write out to the xml file, I believe
         #where does the attached m goes?
-        robot = params[0]
-        connection_list = params[2]
-        self.env.update_robot(robot, connection_list)
+        self.env.update_robot(params)
         #ideally we just modify here so that the structure is also changed
         #here the robot is param
         self.runner.reset()

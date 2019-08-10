@@ -27,8 +27,8 @@ def main(args):
     t = U.Experiment(args.logdir).load(args.ckpt)
 
     # load mode of design distribution
-    env.update_robot(model.sampler.sample(stochastic=False)[0])
-
+    #env.update_robot(model.sampler.sample(stochastic=False)[0])
+    env.update_robot(model.sampler.sample(stochastic=True)[0])
 
     i = 0
     if not args.save:
@@ -44,11 +44,14 @@ def main(args):
         while not done:
             if args.save:
                 rgb = env.render('rgb_array')
-            ac = model.actor.mode(ob[None])[0]
+            #ac = model.actor.mode(ob[None])[0]
+            ac = env.action_space.sample()
             ob, rew, done, _ = env.step(ac)
             if args.save:
                 imwrite(os.path.join(outdir, '{:05d}.png'.format(i)), rgb)
             i += 1
+        #added for testing sampling
+        env.update_robot(model.sampler.sample(stochastic=True)[0])
 
     if args.save:
         outfile = str(t) + '.mp4'

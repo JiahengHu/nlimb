@@ -2,13 +2,13 @@
 from rl.util import set_global_seeds
 import argparse, os, json, shutil, gym
 from model import *
-from envs import NLimbRecorderEnv
+from envs import NLimbRecorderEnv, NLimbEvoRecorderEnv
 from robots import get_robot, get_default_xml
 
 def get_env_id(robot_type, terrain='flat'):
     if robot_type == 'hopper':
         id = 'Hopper-v1'
-    elif robot_type == 'walker':
+    elif robot_type == 'walker' or 'walkerevo':
         id = 'Walker-v1'
     elif robot_type == 'ant':
         id = 'Ant-v1'
@@ -39,9 +39,11 @@ def make_env_fn(args):
     def env_fn(rank):
         default_xml = get_default_xml(args.robot)
         xmlfile = os.path.join(args.logdir, 'logs', 'robot.xml.{}'.format(rank))
+        xmlfile = os.path.abspath(xmlfile)
         shutil.copyfile(default_xml, xmlfile)
         set_global_seeds(args.seed + rank)
         env = gym.make(env_id)
+        #print(f"in init.py, the model.xml is {xmlfile}")
         return NLimbEvoRecorderEnv(env, xmlfile, args.robot)
     return env_fn
 
@@ -55,8 +57,11 @@ def make_model_fn(args):
         actor = Policy('pi', net, ac_space=env.action_space)
         net = Net('net_vf', obs, hiddens=hiddens)
         critic = ValueFunction('vf', net)
+        #I'm still not sure where this +1 is from, but it should be clear that now the number should match up
+        #we need to figure out where this is passed in
         robot = layers.Placeholder(tf.float32, [len(env.params) + 1], 'robot_ph')
-        sampler = RobotSampler('sampler', robot, len(env.params), args.ncomponents, mean_init, args.std_init)
+        #can add initialization parameters here
+        sampler = RobotSampler('sampler', robot, len(env.params), args.ncomponents, mean_init, args.std_init, nlegs = 2, pleg_init = [0, 0])
         return Model('m', actor, critic, sampler)
     return model_fn
 

@@ -307,7 +307,7 @@ class MuJoCoXmlRobot:
 
 
 
-        #also update the actuator
+    #also update the actuator
 
     #this will be the way to go if we want to create from scratch, which will probably be what we will 
     #eventually do

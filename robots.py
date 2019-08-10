@@ -1,5 +1,6 @@
 import numpy as np
 from xml_parser import MuJoCoXmlRobot
+import copy
 
 def get_default_xml(robot_type):
     if robot_type == 'hopper':
@@ -8,6 +9,8 @@ def get_default_xml(robot_type):
         return 'assets/walker2d.xml'
     elif robot_type == 'ant':
         return 'assets/ant.xml'
+    elif robot_type == 'walkerevo':
+        return 'assets/walker2d.xml'
     else:
         assert False, "Unknown robot type."
 
@@ -58,6 +61,7 @@ class Walker(MuJoCoXmlRobot):
     def get_params(self):
         return super().get_params()[:8]
 
+    #I see, this overwrites the prev function
     def get_param_limits(self):
         return self.lower_limits, self.upper_limits
 
@@ -79,9 +83,13 @@ class WalkerEvo(Walker):
         self.action_space_coeff = 3
         self.observation_space_coeff = 7
         self.connection_list = np.ones(len(self.foot_list))
+        self.num_joints = len(self.foot_list)
 
     def get_param_limits(self):
-        return np.concatenate(self.lower_limits, np.zeros(len(self.foot_list))), np.concatenate(self.upper_limits, np.ones(len(self.foot_list)))
+        #use -1 such that the range won't change
+        #hopefully will work
+        #print(f"self.lower_limits shape in robots.py is {self.lower_limits.shape}")
+        return np.concatenate([self.lower_limits, -1*np.ones(len(self.foot_list))]), np.concatenate([self.upper_limits, np.ones(len(self.foot_list))])
 
     def get_params(self):
         return np.concatenate([super().get_params()[:8], self.connection_list])
@@ -89,11 +97,17 @@ class WalkerEvo(Walker):
     def get_param_names(self):
         return np.concatenate([super().get_param_names()[:8], self.foot_list])
 
-    def update(self, params, xml_file=None, connection_list = [1,1]):
+    def update(self, input_params, xml_file=None):
+
         if xml_file is None:
             xml_file = self.model_xml
+        #print(f"shape of input param in robot.py is {input_params.shape}")
+        params = input_params[:-self.num_joints]
+        params = np.array(params)
+        params = np.concatenate([params, params[2:]])
+        connection_list = input_params[-self.num_joints:]
+        #print(f"params in robots.py is {params}")
         self.body.update_params(list(params))
-        # self.body.update_struct(connection_list)
         # print("number of body")
         # print(self.body.xml.findall("body"))
         temp_tree = copy.deepcopy(self.tree)
@@ -113,7 +127,7 @@ class WalkerEvo(Walker):
         actuator = self.tree.getroot().find('actuator')
         motors = actuator.findall('motor')
 
-        print(f"total part number is {num_total_parts}")
+        #print(f"total part number in robots.py is {num_total_parts}")
         parts_xml = xml.findall('body')
         for i in range(num_total_parts):
             j = num_total_parts - i
