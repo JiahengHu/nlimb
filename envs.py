@@ -317,6 +317,38 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
         self.leg_list_length = len(self.robot.foot_list)
         self.connection_list = np.ones(self.leg_list_length)
 
+
+        #update the ob space of the sub env first
+        foot_list = ['foot'] #initial starter
+        for i in range(self.leg_list_length):
+            if(self.connection_list[i]):
+                foot_list.append(self.robot.foot_list[i])
+        self.unwrapped.foot_list = foot_list
+
+        #print(f"connection list in envs.py (update_robot) is {self.connection_list}, corresponding footlist is {foot_list}")
+
+        num_of_leg = np.count_nonzero(self.connection_list) + 1
+
+        high = np.ones([num_of_leg*self.robot.action_space_coeff])
+        self.unwrapped.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
+        self.env.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
+        high = np.inf*np.ones([num_of_leg*self.robot.observation_space_coeff + 8])
+        #print(f"high in envs.py is {high}")
+        self.unwrapped.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
+
+
+        #this is only working for three-legged walker
+        shape = self.observation_space.shape[0] + 7
+        high = self.observation_space.high[0] * np.ones(shape)
+        low = self.observation_space.low[0] * np.ones(shape)
+        self.observation_space = Box(low, high, dtype=np.float32)
+
+        shape = self.action_space.shape[0] + 3
+        high = self.action_space.high[0] * np.ones(shape)
+        low = self.action_space.low[0] * np.ones(shape)
+        self.action_space = Box(low, high, dtype=np.float32)
+        
+
     #okay, looks like we don't even need to change this?
     #oh, we need to change the robot state
     def update_robot(self, params):
@@ -333,20 +365,21 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
         
         #change footlist, change action space
         #these are just temp fix
-        foot_list = []
+        foot_list = ['foot'] #initial starter
         for i in range(self.leg_list_length):
             if(connection_list[i]):
                 foot_list.append(self.robot.foot_list[i])
         self.unwrapped.foot_list = foot_list
 
-        print(f"connection list in envs.py (update_robot) is {connection_list}, corresponding footlist is {foot_list}")
+        #print(f"connection list in envs.py (update_robot) is {connection_list}, corresponding footlist is {foot_list}")
 
-        num_of_leg = np.count_nonzero(self.connection_list)
+        num_of_leg = np.count_nonzero(self.connection_list) + 1
 
         high = np.ones([num_of_leg*self.robot.action_space_coeff])
         self.unwrapped.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
         self.env.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
         high = np.inf*np.ones([num_of_leg*self.robot.observation_space_coeff + 8])
+        #print(f"high in envs.py is {high}")
         self.unwrapped.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
 
     #after reset, will the robot structure change? how should we handle it?
@@ -365,12 +398,12 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
     #this function currently only works for 2d walker
     def step(self, a):
         if(np.count_nonzero(self.connection_list)==0):
-            a = []
+            a = a[:3]
         if(np.count_nonzero(self.connection_list)==1):
             if(self.connection_list[0] == 1):
-                a = a[:3]
+                a = a[:6]
             else:
-                a = a[3:]
+                a = np.concatenate([a[:3],a[6:]])
         ob, r, done, info = self.env.step(np.clip(a,-1,1))
         ob = self.process_obs(ob)
         ob = np.concatenate([ob, self.params])
@@ -383,18 +416,21 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
         # print(f"connection list in envs.py is {self.connection_list}")
         # print(np.count_nonzero(self.connection_list))
         if(np.count_nonzero(self.connection_list)==0):
-            ob = np.concatenate([ob, np.zeros(14)])
+            for i in range(7):
+                ind = 15 - i
+                ob = np.insert(ob,ind, [0,0])
+            #print(f"the observation for single first legged {ob}")
         if(np.count_nonzero(self.connection_list)==1):
             if(self.connection_list[0] == 1):
                 #print(f"the observation for single first legged {ob}")
                 for i in range(7):
-                    ind = 15 - i
+                    ind = 22 - i
                     ob = np.insert(ob,ind, 0)
                 #print(f"the observation for single first legged {ob} (after insertion)")
             else:
                 #print(f"the observation for single second legged {ob}")
                 for i in range(7):
-                    ind = 14 - i
+                    ind = 21 - i
                     ob = np.insert(ob,ind, 0)
                 #print(f"the observation for single second legged {ob} (after insertion)")
         #ob = np.concatenate([ob, self.connection_list])

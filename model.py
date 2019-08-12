@@ -208,7 +208,7 @@ class RobotSampler(module.Module):
     #changed so that it samples both gaussian and bernoulli
     def sample_gaussian(self, index):
         s = self._sample_params[index].eval()
-        print(f"sample_params in model.py: {s} (this should be called in chopping process)")
+        #print(f"sample_params in model.py: {s} (this should be called in chopping process)")
         return np.concatenate([s, [[index]]], axis=1)
 
 

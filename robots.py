@@ -79,7 +79,10 @@ class WalkerEvo(Walker):
         super().__init__(model_xml)
         #here in this class we are actually making the assumption that 
         #foot list is the number of joints that can be disconnected, which might not always be the case
-        self.foot_list = ["foot", "foot_left"]
+        self.foot_list = ["foot_left", "foot_right"] #"foot", should be appended somewhere
+        #when we change it to three legged, the ob space also changes
+        self.num_of_total_legs = 3  #added variable
+
         self.action_space_coeff = 3
         self.observation_space_coeff = 7
         self.connection_list = np.ones(len(self.foot_list))
@@ -89,7 +92,7 @@ class WalkerEvo(Walker):
         #use -1 such that the range won't change
         #hopefully will work
         #print(f"self.lower_limits shape in robots.py is {self.lower_limits.shape}")
-        return np.concatenate([self.lower_limits, -1*np.ones(len(self.foot_list))]), np.concatenate([self.upper_limits, np.ones(len(self.foot_list))])
+        return np.concatenate([self.lower_limits, -1*np.ones(len(self.foot_list))]), np.concatenate([self.upper_limits, np.ones(self.num_joints)])
 
     def get_params(self):
         return np.concatenate([super().get_params()[:8], self.connection_list])
@@ -104,7 +107,7 @@ class WalkerEvo(Walker):
         #print(f"shape of input param in robot.py is {input_params.shape}")
         params = input_params[:-self.num_joints]
         params = np.array(params)
-        params = np.concatenate([params, params[2:]])
+        params = np.concatenate([params, params[2:], params[2:]])
         connection_list = input_params[-self.num_joints:]
         #print(f"params in robots.py is {params}")
         self.body.update_params(list(params))
@@ -129,9 +132,13 @@ class WalkerEvo(Walker):
 
         #print(f"total part number in robots.py is {num_total_parts}")
         parts_xml = xml.findall('body')
-        for i in range(num_total_parts):
+
+        #this has been modified
+        #only -1 is needed to fix the first leg
+        temp_n = 1 #this marks the number of fixed leg
+        for i in range(num_total_parts - temp_n):
             j = num_total_parts - i
-            if connection_list[j-1] == 0:
+            if connection_list[j - 1 - temp_n] == 0:
                 xml.remove(parts_xml[j-1])
                 #this is amazingly inefficient and relies on the sequence of the actuator
                 #but it works for the walker

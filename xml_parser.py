@@ -286,6 +286,7 @@ class MuJoCoXmlRobot:
         return self.body.get_param_limits()
 
     def get_param_names(self):
+        #print(f"parameter names are: {self.body.get_param_names()}")
         return self.body.get_param_names()
 
     def get_height(self):

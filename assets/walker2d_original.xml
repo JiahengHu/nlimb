@@ -24,7 +24,7 @@
           </body>
         </body>
       </body>
-      <!-- copied and then replace thigh->thigh_left, leg->leg_left, foot->foot_r -->
+      <!-- copied and then replace thigh->thigh_left, leg->leg_left, foot->foot_right -->
       <body name="thigh_left" pos="0 0 -.2">
         <joint axis="0 -1 0" name="thigh_left_joint" pos="0 0 0" range="-150 0" type="hinge"/>
         <geom fromto="0 0 -.45 0 0 0" name="thigh_left_geom" rgba=".7 .3 .6 1" size="0.05" type="capsule"/>
@@ -34,20 +34,6 @@
           <body name="foot_left" pos="0 0 -.5">
             <joint axis="0 -1 0" name="foot_left_joint" pos="0 0 0" range="-45 45" type="hinge"/>
             <geom fromto="0 0 0 0.2 0 0" name="foot_left_geom" rgba=".7 .3 .6 1" size="0.06" type="capsule"/>
-          </body>
-        </body>
-      </body>
-
-      <!-- copied and then replace thigh->thigh_right, leg->leg_right, foot->foot_right -->
-      <body name="thigh_right" pos="0 0 -.2">
-        <joint axis="0 -1 0" name="thigh_right_joint" pos="0 0 0" range="-150 0" type="hinge"/>
-        <geom fromto="0 0 -.45 0 0 0" name="thigh_right_geom" rgba=".7 .3 .6 1" size="0.05" type="capsule"/>
-        <body name="leg_right" pos="0 0 -.45">
-          <joint axis="0 -1 0" name="leg_right_joint" pos="0 0 0" range="-150 0" type="hinge"/>
-          <geom fromto="0 0 -.5 0 0 0" name="leg_right_geom" rgba=".7 .3 .6 1" size="0.04" type="capsule"/>
-          <body name="foot_right" pos="0 0 -.5">
-            <joint axis="0 -1 0" name="foot_right_joint" pos="0 0 0" range="-45 45" type="hinge"/>
-            <geom fromto="0 0 0 0.2 0 0" name="foot_right_geom" rgba=".7 .3 .6 1" size="0.06" type="capsule"/>
           </body>
         </body>
       </body>
@@ -61,9 +47,6 @@
     <motor ctrllimited="true" ctrlrange="-1.0 1.0" gear="100" joint="thigh_left_joint"/>
     <motor ctrllimited="true" ctrlrange="-1.0 1.0" gear="100" joint="leg_left_joint"/>
     <motor ctrllimited="true" ctrlrange="-1.0 1.0" gear="100" joint="foot_left_joint"/>
-    <motor ctrllimited="true" ctrlrange="-1.0 1.0" gear="100" joint="thigh_right_joint"/>
-    <motor ctrllimited="true" ctrlrange="-1.0 1.0" gear="100" joint="leg_right_joint"/>
-    <motor ctrllimited="true" ctrlrange="-1.0 1.0" gear="100" joint="foot_right_joint"/>
     <!-- <motor joint="finger2_rot" ctrlrange="-20.0 20.0" isctrllimited="true"/>-->
   </actuator>
 </mujoco>
