@@ -174,7 +174,7 @@ def create_evo_env(BaseClass):
             self.render_ground = False
             self.inclined_terrain = False
             #temporary fix, should have a formal change for this
-            self.electricity_cost     = -20.0    # cost for using motors -- this parameter should be carefully tuned against reward for making progress, other values less improtant
+            self.electricity_cost     = -2.0    # cost for using motors -- this parameter should be carefully tuned against reward for making progress, other values less improtant
             self.stall_torque_cost    = -0.1    # cost for running electric current through a motor even at zero rotational speed, small
             self.foot_collision_cost  = -1.0    # touches another leg, or other objects, that cost makes robot avoid smashing feet into itself
             self.foot_ground_object_names = set(["floor"])  # to distinguish ground and other objects
@@ -233,16 +233,6 @@ def create_evo_env(BaseClass):
             self.potential = self.calc_potential()
             self.camera = self.scene.cpp_world.new_camera_free_float(self.VIDEO_W, self.VIDEO_H, "video_camera")
             return s
-
-        def alive_bonus(self, z, pitch):
-            """
-            Adjust Roboschool height thresholds to account for changes
-            in elevation.
-            """
-            bonus = 0.5 if isinstance(self, RoboschoolAnt) else 1.0
-            thresh = 0.26 if isinstance(self, RoboschoolAnt) else 0.8
-            thresh += self.body_xyz[0] * np.tan(np.pi * self.slope / 180.)
-            return bonus if z > thresh and abs(pitch) < 1.0 else -1
 
         def calc_state(self):
             """
