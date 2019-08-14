@@ -165,6 +165,96 @@ def create_inline_env(BaseClass):
     return Env
 
 
+#we probably need to change this line as well
+#work on a inverted double pendulum
+def create_evo_env(BaseClass):
+    class Env(BaseClass):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.render_ground = False
+            self.inclined_terrain = False
+            #temporary fix, should have a formal change for this
+            self.electricity_cost     = -20.0    # cost for using motors -- this parameter should be carefully tuned against reward for making progress, other values less improtant
+            self.stall_torque_cost    = -0.1    # cost for running electric current through a motor even at zero rotational speed, small
+            self.foot_collision_cost  = -1.0    # touches another leg, or other objects, that cost makes robot avoid smashing feet into itself
+            self.foot_ground_object_names = set(["floor"])  # to distinguish ground and other objects
+            self.joints_at_limit_cost = -0.2    # discourage stuck joints
+
+        def create_single_player_scene(self):
+            return SinglePlayerScene(gravity=9.8, timestep=0.0165/4, frame_skip=4, render=self.render_ground, inclined=self.inclined_terrain)
+
+        def set_render_ground(self, render=False):
+            self.render_ground = render
+            if self.scene is not None:
+                self.scene.render = render
+
+        def _reset(self):
+            """
+            Load from abribrary xml files.
+            """
+            if self.scene is None:
+                self.scene = self.create_single_player_scene()
+            if not self.scene.multiplayer:
+                self.scene.episode_restart()
+            # Only this line has been changed. The rest is copied from Roboschool.
+            #print(f"in envs.py, the model.xml is {self.model_xml}")
+            self.mjcf = self.scene.cpp_world.load_mjcf(self.model_xml)
+            self.ordered_joints = []
+            self.jdict = {}
+            self.parts = {}
+            self.frame = 0
+            self.done = 0
+            self.reward = 0
+            dump = 0
+            for r in self.mjcf:
+                if dump: print("ROBOT '%s'" % r.root_part.name)
+                if r.root_part.name==self.robot_name:
+                    self.cpp_robot = r
+                    self.robot_body = r.root_part
+                for part in r.parts:
+                    if dump: print("\tPART '%s'" % part.name)
+                    self.parts[part.name] = part
+                    if part.name==self.robot_name:
+                        self.cpp_robot = r
+                        self.robot_body = part
+                for j in r.joints:
+                    if dump: print("\tALL JOINTS '%s' limits = %+0.2f..%+0.2f effort=%0.3f speed=%0.3f" % ((j.name,) + j.limits()) )
+                    if j.name[:6]=="ignore":
+                        j.set_motor_torque(0)
+                        continue
+                    j.power_coef = 100.0
+                    self.ordered_joints.append(j)
+                    self.jdict[j.name] = j
+            assert(self.cpp_robot)
+            self.robot_specific_reset()
+            for r in self.mjcf:
+                r.query_position()
+            s = self.calc_state()    # optimization: calc_state() can calculate something in self.* for calc_potential() to use
+            self.potential = self.calc_potential()
+            self.camera = self.scene.cpp_world.new_camera_free_float(self.VIDEO_W, self.VIDEO_H, "video_camera")
+            return s
+
+        def alive_bonus(self, z, pitch):
+            """
+            Adjust Roboschool height thresholds to account for changes
+            in elevation.
+            """
+            bonus = 0.5 if isinstance(self, RoboschoolAnt) else 1.0
+            thresh = 0.26 if isinstance(self, RoboschoolAnt) else 0.8
+            thresh += self.body_xyz[0] * np.tan(np.pi * self.slope / 180.)
+            return bonus if z > thresh and abs(pitch) < 1.0 else -1
+
+        def calc_state(self):
+            """
+            Zero out foot contact booleans.
+            """
+            state = super().calc_state()
+            state[-len(self.foot_list):] = 0.
+            return state
+
+    return Env
+
+
 
 HopperEnv = create_env(RoboschoolHopper)
 WalkerEnv = create_env(RoboschoolWalker2d)
@@ -172,6 +262,7 @@ AntEnv    = create_env(RoboschoolAnt)
 InclineHopperEnv = create_inline_env(HopperEnv)
 InclineWalkerEnv = create_inline_env(WalkerEnv)
 InclineAntEnv    = create_inline_env(AntEnv)
+EvoWalkerEnv = create_evo_env(RoboschoolWalker2d)
 
 register(
     id='NLimbHopper-v1',
@@ -180,12 +271,12 @@ register(
     reward_threshold=2500.0
     )
 
-register(
-    id='NLimbWalker-v1',
-    entry_point='envs:WalkerEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+# register(
+#     id='NLimbWalker-v1',
+#     entry_point='envs:WalkerEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
 
 register(
     id='NLimbAnt-v1',
@@ -215,6 +306,13 @@ register(
     reward_threshold=2500.0
     )
 
+
+register(
+    id='NLimbWalker-v1',
+    entry_point='envs:EvoWalkerEnv',
+    max_episode_steps=1000,
+    reward_threshold=2500.0
+    )
 
 
 from gym import Wrapper
