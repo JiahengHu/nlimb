@@ -242,6 +242,15 @@ def create_evo_env(BaseClass):
             state[-len(self.foot_list):] = 0.
             return state
 
+        def alive_bonus(self, z, pitch):
+            """
+            Adjust Roboschool height thresholds to account for changes
+            in elevation.
+            """
+            alive_bonus = super().alive_bonus(z,pitch)
+            #print(f"alive_bonus is {alive_bonus}, z is {z}, pitch is {pitch}")
+            return alive_bonus
+
     return Env
 
 
@@ -435,7 +444,7 @@ class NLimbEvoRecorderEnv(NLimbRecorderEnv):
         high = self.action_space.high[0] * np.ones(shape)
         low = self.action_space.low[0] * np.ones(shape)
         self.action_space = Box(low, high, dtype=np.float32)
-        
+
 
     #okay, looks like we don't even need to change this?
     #oh, we need to change the robot state

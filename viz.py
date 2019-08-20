@@ -4,7 +4,8 @@ from collections import namedtuple
 import os, argparse, json
 from imageio import imwrite
 import subprocess as sp
-
+from OpenGL import GLU
+import time
 
 def main(args):
     U.reset()
@@ -39,16 +40,19 @@ def main(args):
         os.makedirs(outdir, exist_ok=True)
         os.makedirs(os.path.join(args.logdir, 'video'), exist_ok=True)
     for j in range(args.nepisodes):
+        print('The start of a new episode')
         done = False
         ob = env.reset()
         while not done:
             if args.save:
                 rgb = env.render('rgb_array')
-            #ac = model.actor.mode(ob[None])[0]
-            ac = env.action_space.sample()
+            ac = model.actor.mode(ob[None])[0]
+            #ac = env.action_space.sample()
             ob, rew, done, _ = env.step(ac)
             if args.save:
                 imwrite(os.path.join(outdir, '{:05d}.png'.format(i)), rgb)
+            # else:
+            #     time.sleep(1)
             i += 1
         #added for testing sampling
         env.update_robot(model.sampler.sample(stochastic=True)[0])
