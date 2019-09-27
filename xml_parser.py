@@ -244,57 +244,97 @@ class MuJoCoXmlRobot:
         self.body.update_params(list(params))
         self.tree.write(xml_file)
 
+class MuJoCoXmlEnv:
+    def __init__(self, env_xml):
+        self.env_xml = env_xml
+        self.tree = ET.parse(self.env_xml)
+        worldbody = self.tree.getroot().find('worldbody')
+
+        #we don't need the body here
+        self.body = worldbody.find('body')
+
+        self.geom = self.tree.getroot().find('worldbody').find('body').find('geom')
+
+    def get_quat(self):
+        return self.body.get("quat")
+
+    def set_quat(self, degree):
+        #we need a converter here
+        self.body.set("quat", degree)
+
+    def get_fiction(self):
+        return self.geom.get("friction")
+
+    def set_friction(self, friction):
+        self.geom.set("friction", friction)
+
+    def update(self, degree = None, friction = None, xml_file=None):
+        if xml_file is None:
+            xml_file = self.env_xml
+
+        #need to change this
+        if degree:
+            self.set_quat(degree)
+        if friction:
+            self.set_friction(friction)
+        self.tree.write(xml_file)
+
 if __name__ == '__main__':
-    robot = MuJoCoXmlRobot('mujoco_assets/hopper.xml')
-    params = list(1.0 * np.array(robot.get_params()))
-    robot.update(params, 'mujoco_assets/hopper_test.xml')
-    assert robot.get_params() == params
-    #assert robot.get_height() == 1.31
-    print(robot.get_param_limits())
-    print(robot.get_param_names())
+    # robot = MuJoCoXmlRobot('mujoco_assets/hopper.xml')
+    # params = list(1.0 * np.array(robot.get_params()))
+    # robot.update(params, 'mujoco_assets/hopper_test.xml')
+    # assert robot.get_params() == params
+    # #assert robot.get_height() == 1.31
+    # print(robot.get_param_limits())
+    # print(robot.get_param_names())
 
-    robot = MuJoCoXmlRobot('mujoco_assets/walker2d.xml')
-    params = [.4,.04,.5,.05,.55,.055,.6,.06,.5,.05,.55,.055,.6,.06]
-    robot.update(params, 'mujoco_assets/walker2d_test.xml')
-    assert robot.get_params() == params
-    assert robot.get_height() == 1.31
-    print(robot.get_param_limits())
-    print(robot.get_param_names())
+    # robot = MuJoCoXmlRobot('mujoco_assets/walker2d.xml')
+    # params = [.4,.04,.5,.05,.55,.055,.6,.06,.5,.05,.55,.055,.6,.06]
+    # robot.update(params, 'mujoco_assets/walker2d_test.xml')
+    # assert robot.get_params() == params
+    # assert robot.get_height() == 1.31
+    # print(robot.get_param_limits())
+    # print(robot.get_param_names())
 
-    robot = MuJoCoXmlRobot('mujoco_assets/ant.xml')
-    params = [.2, .2,.06,.2,.06,.4,.06, .2,.06,.2,.06,.4,.06, .2,.06,.2,.06,.4,.06, .2,.06,.2,.06,.4,.06]
-    robot.update(params, 'mujoco_assets/ant_test.xml')
-    assert robot.get_params() == params
-    assert robot.get_height() == .2
-    print(robot.get_param_limits())
-    print(robot.get_param_names())
+    # robot = MuJoCoXmlRobot('mujoco_assets/ant.xml')
+    # params = [.2, .2,.06,.2,.06,.4,.06, .2,.06,.2,.06,.4,.06, .2,.06,.2,.06,.4,.06, .2,.06,.2,.06,.4,.06]
+    # robot.update(params, 'mujoco_assets/ant_test.xml')
+    # assert robot.get_params() == params
+    # assert robot.get_height() == .2
+    # print(robot.get_param_limits())
+    # print(robot.get_param_names())
 
-    robot = MuJoCoXmlRobot('mujoco_assets/humanoid.xml')
-    params = list(.8 * np.array(robot.get_params()))
-    robot.update(params, 'mujoco_assets/humanoid_test.xml')
-    assert robot.get_params() == params
-    print(robot.get_height())
-    #assert robot.get_height() == .6085
-    print(robot.get_param_limits())
-    print(robot.get_param_names())
+    # robot = MuJoCoXmlRobot('mujoco_assets/humanoid.xml')
+    # params = list(.8 * np.array(robot.get_params()))
+    # robot.update(params, 'mujoco_assets/humanoid_test.xml')
+    # assert robot.get_params() == params
+    # print(robot.get_height())
+    # #assert robot.get_height() == .6085
+    # print(robot.get_param_limits())
+    # print(robot.get_param_names())
 
-    import gym, roboschool
-    env = gym.make("RoboschoolHopper-v1")
-    env.unwrapped.model_xml = 'mujoco_assets/hopper_test.xml'
-    env.reset()
-    #env.render()
-    import os
-    from scipy.misc import imsave
-    import subprocess as sp
-    outdir = 'xml_vid'
-    os.makedirs(outdir, exist_ok=True)
-    i = 0
-    for _ in range(10):
-        env.reset()
-        for _ in range(100):
-            env.step(env.action_space.sample())
-            rgb = env.render('rgb_array')
-            imsave(os.path.join(outdir, '{:05d}.png'.format(i)), rgb)
-            i+=1
-    sp.call(['ffmpeg', '-r', '60', '-f', 'image2', '-i', os.path.join(outdir, '%05d.png'), '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', os.path.join(outdir, 'out.mp4')])
-    env.close()
+    # import gym, roboschool
+    # env = gym.make("RoboschoolHopper-v1")
+    # env.unwrapped.model_xml = 'mujoco_assets/hopper_test.xml'
+    # env.reset()
+    # #env.render()
+    # import os
+    # from scipy.misc import imsave
+    # import subprocess as sp
+    # outdir = 'xml_vid'
+    # os.makedirs(outdir, exist_ok=True)
+    # i = 0
+    # for _ in range(10):
+    #     env.reset()
+    #     for _ in range(100):
+    #         env.step(env.action_space.sample())
+    #         rgb = env.render('rgb_array')
+    #         imsave(os.path.join(outdir, '{:05d}.png'.format(i)), rgb)
+    #         i+=1
+    # sp.call(['ffmpeg', '-r', '60', '-f', 'image2', '-i', os.path.join(outdir, '%05d.png'), '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', os.path.join(outdir, 'out.mp4')])
+    # env.close()
+
+    env = MuJoCoXmlEnv('mujoco_assets/incline_plane.mjcf')
+
+    env.update(friction = "1.0 0.8 1.0", xml_file = 'mujoco_assets/incline_plane_test.mjcf')
+

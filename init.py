@@ -43,6 +43,21 @@ def make_env_fn(args):
         return NLimbRecorderEnv(env, xmlfile, args.robot)
     return env_fn
 
+def make_env_fn_friction(args, slope = None, friction = None):
+    #this is the correct format
+    #env_id = get_env_id(args.robot, args.terrain, slope, friction)
+
+    #this is for testing
+    env_id = 'NLimbSlopeFricHopper-v1'
+    def env_fn(rank):
+        default_xml = get_default_xml(args.robot)
+        xmlfile = os.path.join(args.logdir, 'logs', 'robot.xml.{}'.format(rank))
+        shutil.copyfile(default_xml, xmlfile)
+        set_global_seeds(args.seed + rank)
+        env = gym.make(env_id)
+        return NLimbRecorderEnv(env, xmlfile, args.robot)
+    return env_fn
+
 def make_model_fn(args):
     hiddens = [args.nunits] * args.nlayers
     mean_init = get_init_params(args)

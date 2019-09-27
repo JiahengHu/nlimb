@@ -15,6 +15,10 @@ from roboschool.scene_stadium import SinglePlayerStadiumScene
 from roboschool.scene_abstract import Scene, cpp_household
 from roboschool.gym_mujoco_walkers import *
 from gym.envs.registration import register
+from xml_parser import MuJoCoXmlEnv
+
+#I'm not sure where he takes in the degree
+#it might be that this project is simply setting it to 5 degree
 
 class SinglePlayerScene(SinglePlayerStadiumScene):
     def __init__(self,*args, render=False, inclined=False, **kwargs):
@@ -39,6 +43,28 @@ class SinglePlayerScene(SinglePlayerStadiumScene):
             self.ground_plane_mjcf = self.cpp_world.load_mjcf( "assets/incline_plane.mjcf")
         else:
             self.ground_plane_mjcf = self.cpp_world.load_mjcf( "assets/level_plane.mjcf")
+
+class SinglePlayerSceneFricSlope(SinglePlayerScene):
+    # Allow the user to pass in slope and friction, and create the corresponding ground plane
+    # We need to give the mojoco file a number
+    def __init__(self, env_xml, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.env_xml = env_xml
+
+    def episode_restart(self):
+        Scene.episode_restart(self)
+        stadium_pose = cpp_household.Pose()
+        if self.zero_at_running_strip_start_line:
+            stadium_pose.set_xyz(27, 21, 0)
+        if self.render:
+            if self.inclined:
+                self.hfield = self.cpp_world.load_thingy('assets/incline_grass.obj', stadium_pose, 1.0, 0, 0xFFFFFF, True)
+            else:
+                self.stadium = self.cpp_world.load_thingy(
+                os.path.join(os.path.dirname(roboschool.__file__), "models_outdoor/stadium/stadium1.obj"),
+                stadium_pose, 1.0, 0, 0xFFFFFF, True)
+
+        self.ground_plane_mjcf = self.cpp_world.load_mjcf(env_xml)
 
 
 def create_env(BaseClass):
@@ -163,6 +189,29 @@ def create_inline_env(BaseClass):
     return Env
 
 
+def create_incline_friction_env(BaseClass, slope = None, friction = None):
+    #need to handle concatenation later, right now we can probably just deal with the environment itself
+
+    #we need to read, modify, and save the env xml into a different folder (in init?)
+
+    class Env(BaseClass):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            default_xml = 'assets/incline_plane.mjcf'
+            xmlfile = os.path.join(args.logdir, 'logs', 'incline_plane.mjcf.{}'.format(env_type))
+            shutil.copyfile(default_xml, xmlfile)
+            self.xmlfile = xmlfile
+
+            #change the parameters according to slope and friction
+            env = MuJoCoXmlEnv(xmlfile)
+            env.update(slope = slope, friction = friction)
+
+        def create_single_player_scene(self):
+            #this class need to be modified
+            return SinglePlayerSceneFricSlope(self.xmlfile, gravity=9.8, timestep=0.0165/4, frame_skip=4, render=self.render_ground, inclined=self.inclined_terrain)
+    return Env
+
+
 
 HopperEnv = create_env(RoboschoolHopper)
 WalkerEnv = create_env(RoboschoolWalker2d)
@@ -170,6 +219,19 @@ AntEnv    = create_env(RoboschoolAnt)
 InclineHopperEnv = create_inline_env(HopperEnv)
 InclineWalkerEnv = create_inline_env(WalkerEnv)
 InclineAntEnv    = create_inline_env(AntEnv)
+
+
+############################## Just for testing  ################################
+InclineHopperTestEnv = create_incline_friction_env(InclineHopperEnv, friction = "2.0 2.0 2.0")
+register(
+    id='NLimbSlopeFricHopper-v1',
+    entry_point='envs:InclineHopperTestEnv',
+    max_episode_steps=1000,
+    reward_threshold=2500.0
+    )
+############################## End of testing  ################################
+
+#Instead, we should write a for loop that register for all the environment we need
 
 register(
     id='NLimbHopper-v1',

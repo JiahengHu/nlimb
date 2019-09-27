@@ -1,0 +1,5 @@
+*.pyc
+logs/*
+mujoco_assets/*
+videos/*
+xml_vid/*

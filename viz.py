@@ -1,10 +1,13 @@
 from deeplearning import tf_util as U
-from init import make_env_fn, make_model_fn
+from init import make_env_fn, make_model_fn, make_env_fn_friction
 from collections import namedtuple
 import os, argparse, json
 from imageio import imwrite
 import subprocess as sp
 
+random_action = False #this is mainly used for testing the workflow
+use_friction_env = True #this is for switching the make_ev function
+use_model = False
 
 def main(args):
     U.reset()
@@ -12,22 +15,30 @@ def main(args):
     with open(os.path.join(args.logdir, 'hyps.json'), 'r') as f:
         hyps = json.load(f)
     train_args = namedtuple('Args', hyps.keys())(**hyps)
-    env_fn = make_env_fn(train_args)
+    
+    if use_friction_env:
+        #when actually using, fill in the argument
+        env_fn = make_env_fn_friction(train_args)
+    else:
+        env_fn = make_env_fn(train_args)
+
     model_fn = make_model_fn(train_args)
 
     env = env_fn(0)
     env.unwrapped.set_render_ground(True)
-    model = model_fn(env)
-    model.build('model', 1, 1)
-    model.sampler.build('model', 1, 1)
+    if use_model:
+        model = model_fn(env)
+        model.build('model', 1, 1)
+        model.sampler.build('model', 1, 1)
 
     sess = U.make_session()
     sess.__enter__()
     U.initialize()
-    t = U.Experiment(args.logdir).load(args.ckpt)
-
-    # load mode of design distribution
-    env.update_robot(model.sampler.sample(stochastic=False)[0])
+    
+    if use_model:
+        t = U.Experiment(args.logdir).load(args.ckpt)
+        # load mode of design distribution
+        env.update_robot(model.sampler.sample(stochastic=False)[0])
 
 
     i = 0
@@ -44,7 +55,10 @@ def main(args):
         while not done:
             if args.save:
                 rgb = env.render('rgb_array')
-            ac = model.actor.mode(ob[None])[0]
+            if not random_action:
+                ac = model.actor.mode(ob[None])[0]
+            else:
+                ac = env.action_space.sample()
             ob, rew, done, _ = env.step(ac)
             if args.save:
                 imwrite(os.path.join(outdir, '{:05d}.png'.format(i)), rgb)
